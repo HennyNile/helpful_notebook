@@ -1,6 +1,6 @@
 # Apache Spark Query Optimization Workflow
 
- The primary workflow for executing relational queries using Spark is implemented in file **spark\sql\core\src\main\scala\org\apache\spark\sql\execution\QueryExecution.scala **'s class **QueryExecution** . In this workflow, query has been parsed to a logical plan in the beginning and the process of parse is omitted.
+ The primary workflow for executing relational queries using Spark is implemented in file **spark\sql\core\src\main\scala\org\apache\spark\sql\execution\QueryExecution.scala**'s class **QueryExecution** . In this workflow, query has been parsed to a logical plan in the beginning and the process of parse is omitted.
 
 ## 0. Used files and corresponding file paths
 
