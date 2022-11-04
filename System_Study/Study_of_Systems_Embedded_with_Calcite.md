@@ -2,7 +2,7 @@
 
 In this document, l will introduce several systems that embed with [Apache Calcite](https://github.com/apache/calcite) from following aspects: motivation, optimizer, execution engine and storage.  According to calcite paper, We could have an overview of such systems.
 
-![List of systems that embed Calcite](./pictures/list_of_systems_that_embed_Calcite.png)
+![List of systems that embed Calcite](../pictures/list_of_systems_that_embed_Calcite.png)
 
 This study is to find a system where better cardinality estimation could lead to better performance. To implement this, I think **this system should satisfy the following conditions**: (1) **OLAP**, we need a system which is compute-bound; (2) **Use calcite as CBO**; (3) **(optional) In-memory**.  
 
@@ -105,7 +105,7 @@ Hadoop.
 
 ## V. [Apache Kylin](https://github.com/apache/kylin) (2015, Distributed)
 
-![Apache Kylin](./pictures/Apache_Kylin.png)
+![Apache Kylin](../pictures/Apache_Kylin.png)
 
 ### 1. Motivation
 
