@@ -1,8 +1,33 @@
-# Load IMDB Dataset into Postgres
+# IMDB Dataset used in Benchmark JOB
+
+Dataset Resource: https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/2QYZBT
+
+Main Reference: https://www.postgresql.org/docs/7.1/app-pgdump.html, https://www.postgresql.org/docs/current/app-pgrestore.html
+
+## I. Getting the Source
+
+Download from https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/2QYZBT.
+
+## II. Load the Data 
+
+The data is dumped from postgres database with command 
+
+```bash
+pg_dump -Fc
+```
+
+Then we use pg_restore to restore data
+
+```bash
+su - postgres_15_sc
+pg_restore -h localhost -p 5431 -U postgres_15_sc -C -d postgres /tmp/imdb_pg11
+```
+
+# Official IMDB Dataset
 
 **Main Reference**: [Loading IMDB data into postgresql](https://dbastreet.com/?p=1426)
 
-# I. Requirements
+## I. Requirements
 
 ### 1. pip
 
@@ -65,4 +90,3 @@ python3 s32cinemagoer.py <Path of dir of IMDB Databaset> postgresql://username:p
 # practical
 python3 s32cinemagoer.py ~/workspace/0.LBO/IMDB/data postgresql://postgres_15_sc:postgres@localhost:5431/imdb
 ```
-

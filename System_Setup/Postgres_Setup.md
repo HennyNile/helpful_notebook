@@ -80,9 +80,11 @@ sudo find / -name 'postgresql.conf'
 
 ```bash
 # start service
+su - postgres_15_sc
 /usr/local/pgsql/bin/pg_ctl -D /usr/local/pgsql/data -l logfile start
 
 # stop service
+su - postgres_15_sc
 /usr/local/pgsql/bin/pg_ctl -D /usr/local/pgsql/data -l logfile stop
 ```
 
@@ -98,6 +100,7 @@ sudo find / -name 'postgresql.conf'
 
 ```
 /usr/local/pgsql/bin/psql -h localhost -p 5431 -U postgres_15_sc postgres
+/usr/local/pgsql/bin/psql -h localhost -p 5431 -U postgres_15_sc imdb
 ```
 
 ### 3. Select Database
@@ -114,6 +117,12 @@ sudo find / -name 'postgresql.conf'
 
 # show specific information of a table
 \d <table_name>
+```
+
+### 5. Analyze Tables
+
+```
+ANALYZE [ VERBOSE ] [ table_and_columns [, ...] ]
 ```
 
 
