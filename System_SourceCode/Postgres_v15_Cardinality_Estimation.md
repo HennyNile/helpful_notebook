@@ -844,6 +844,100 @@ void cost_seqscan(Path *path, PlannerInfo *root, RelOptInfo *baserel, ParamPathI
 ### 1. Computing Flow of Cardinality Estimation
 
 ```c
+src/backend/optimizer/plan/planmain.c
+/*
+ * query_planner
+ *	  Generate a path (that is, a simplified plan) for a basic query,
+ *	  which may involve joins but not any fancier features.
+ *
+ * Since query_planner does not handle the toplevel processing (grouping,
+ * sorting, etc) it cannot select the best path by itself.  Instead, it
+ * returns the RelOptInfo for the top level of joining, and the caller
+ * (grouping_planner) can choose among the surviving paths for the rel.
+ *
+ * root describes the query to plan
+ * qp_callback is a function to compute query_pathkeys once it's safe to do so
+ * qp_extra is optional extra data to pass to qp_callback
+ *
+ * Note: the PlannerInfo node also includes a query_pathkeys field, which
+ * tells query_planner the sort order that is desired in the final output
+ * plan.  This value is *not* available at call time, but is computed by
+ * qp_callback once we have completed merging the query's equivalence classes.
+ * (We cannot construct canonical pathkeys until that's done.)
+ */
+RelOptInfo *
+query_planner(PlannerInfo *root,
+			  query_pathkeys_callback qp_callback, void *qp_extra)
+    /*
+	 * Ready to do the primary planning.
+	 */
+	final_rel = make_one_rel(root, joinlist);
+
+/*
+ * make_one_rel
+ *	  Finds all possible access paths for executing a query, returning a
+ *	  single rel that represents the join of all base rels in the query.
+ */
+RelOptInfo *
+make_one_rel(PlannerInfo *root, List *joinlist)
+	rel = make_rel_from_joinlist(root, joinlist);
+
+src/backend/optimizer/path/allpaths.c
+/*
+ * make_rel_from_joinlist
+ *	  Build access paths using a "joinlist" to guide the join path search.
+ *
+ * See comments for deconstruct_jointree() for definition of the joinlist
+ * data structure.
+ */
+static RelOptInfo *
+make_rel_from_joinlist(PlannerInfo *root, List *joinlist)
+    if (IsA(jlnode, List))
+    {
+        /* Recurse to handle subproblem */
+        thisrel = make_rel_from_joinlist(root, (List *) jlnode);
+    }
+    
+	return standard_join_search(root, levels_needed, initial_rels);
+
+src/backend/optimizer/path/allpaths.c
+/*
+ * standard_join_search
+ *	  Find possible joinpaths for a query by successively finding ways
+ *	  to join component relations into join relations.
+ *
+ * 'levels_needed' is the number of iterations needed, ie, the number of
+ *		independent jointree items in the query.  This is > 1.
+ *
+ * 'initial_rels' is a list of RelOptInfo nodes for each independent
+ *		jointree item.  These are the components to be joined together.
+ *		Note that levels_needed == list_length(initial_rels).
+ *
+ * Returns the final level of join relations, i.e., the relation that is
+ * the result of joining all the original relations together.
+ * At least one implementation path must be provided for this relation and
+ * all required sub-relations.
+ *
+ * To support loadable plugins that modify planner behavior by changing the
+ * join searching algorithm, we provide a hook variable that lets a plugin
+ * replace or supplement this function.  Any such hook must return the same
+ * final join relation as the standard code would, but it might have a
+ * different set of implementation paths attached, and only the sub-joinrels
+ * needed for these paths need have been instantiated.
+ *
+ * Note to plugin authors: the functions invoked during standard_join_search()
+ * modify root->join_rel_list and root->join_rel_hash.  If you want to do more
+ * than one join-order search, you'll probably need to save and restore the
+ * original states of those data structures.  See geqo_eval() for an example.
+ */
+RelOptInfo *
+standard_join_search(PlannerInfo *root, int levels_needed, List *initial_rels)
+	for (lev = 2; lev <= levels_needed; lev++)
+	{
+		join_search_one_level(root, lev);
+    }
+
+src/backend/optimizer/path/joinrels.c
 /*
  * join_search_one_level
  *	  Consider ways to produce join relations containing exactly 'level'
@@ -859,8 +953,11 @@ void cost_seqscan(Path *path, PlannerInfo *root, RelOptInfo *baserel, ParamPathI
  */
 void
 join_search_one_level(PlannerInfo *root, int level)
-    (void) make_join_rel(root, old_rel, new_rel);
+    make_rels_by_clause_joins(root, old_rel, other_rels_list, other_rels);
+	make_rels_by_clauseless_joins(root, old_rel,joinrels[1]);
 
+	// both above methods also call method (void) make_join_rel() to make join relations
+	(void) make_join_rel(root, old_rel, new_rel);
 
 src/backend/optimizer/path/joinrels.c
 RelOptInfo *
