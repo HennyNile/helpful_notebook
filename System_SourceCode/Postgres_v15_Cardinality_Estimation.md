@@ -638,7 +638,78 @@ WHERE t.id=mi_idx.movie_id AND
 
 Here are three predicates ```t.id=mi_idx.movie_id```, ```t.production_year=1977```, ```mi_idx.id<627517```.
 
-To estimate cardinality, Postgres first compute selectivity based on the predicates and then get result cardinality by multiplying the selectivity and cardinality of input relation. 
+To estimate cardinality, Postgres first computes selectivity based on the predicates and then get result cardinality by multiplying the selectivity and cardinality of input relation. Postgres computes selectivity in the following method ```clause_selectivity_ext()```. 
+
+```c
+src/backend/optimizer/path/clausesel.c
+/*
+ * clause_selectivity_ext -
+ *	  Extended version of clause_selectivity().  If "use_extended_stats" is
+ *	  false, all extended statistics will be ignored, and only per-column
+ *	  statistics will be used.
+ */
+Selectivity
+clause_selectivity_ext(PlannerInfo *root,
+					   Node *clause,
+					   int varRelid,
+					   JoinType jointype,
+					   SpecialJoinInfo *sjinfo,
+					   bool use_extended_stats)
+    if (is_opclause(clause) || IsA(clause, DistinctExpr))
+	{
+		OpExpr	   *opclause = (OpExpr *) clause;
+		Oid			opno = opclause->opno;
+
+		if (treat_as_join_clause(root, clause, rinfo, varRelid, sjinfo))
+		{
+			/* Estimate selectivity for a join clause. */
+			s1 = join_selectivity(root, opno,
+								  opclause->args,
+								  opclause->inputcollid,
+								  jointype,
+								  sjinfo);
+		}
+		else
+		{
+			/* Estimate selectivity for a restriction clause. */
+			s1 = restriction_selectivity(root, opno,
+										 opclause->args,
+										 opclause->inputcollid,
+										 varRelid);
+		}
+
+		/*
+		 * DistinctExpr has the same representation as OpExpr, but the
+		 * contained operator is "=" not "<>", so we must negate the result.
+		 * This estimation method doesn't give the right behavior for nulls,
+		 * but it's better than doing nothing.
+		 */
+		if (IsA(clause, DistinctExpr))
+			s1 = 1.0 - s1;
+	}
+```
+
+ This method only computes the selectivity for one predicate which is transfered as parameter **Node *clause**.  We focus on predicate ```t.production_year=1977``` which has two arguments (t.production, 1977) and one operator (=). Two arguments are stored in ```opclause->args``` and the operator is stored in ```opclause->opno```. 
+
+For arguments, columns are stored are variables with type **Var** and constants are stored as variables with type **Const**. You could get the certain variable via the following method
+
+```c
+foreach(arg, opclause->args)
+{
+    if (IsA(lfirst(arg), Const)) // get constant
+    {
+        Const* const_var = (Const *)lfirst(arg);
+        long const_value = const_var->constvalue;
+    }
+    else if (IsA(lfirst(arg), Var)) // get column
+    {
+        Var* var = (Var *)lfirst(arg);
+        int varattno = var->varattno; // varattno is the index of column in its relation
+    }
+}
+```
+
+For operators, you could get all operators' code in file **pg_operator.dat**. The operator id for = in ```t.production_year=1977``` is 96.
 
 ## II. Paths Generation of Base Relations
 
@@ -647,6 +718,35 @@ There are 12 kinds scan in postgres. They are **sequence scan**,  **sample scan*
 We take sequence scan as the example here.
 
 ```c
+src/backend/optimizer/plan/planmain.c
+/*
+ * query_planner
+ *	  Generate a path (that is, a simplified plan) for a basic query,
+ *	  which may involve joins but not any fancier features.
+ *
+ * Since query_planner does not handle the toplevel processing (grouping,
+ * sorting, etc) it cannot select the best path by itself.  Instead, it
+ * returns the RelOptInfo for the top level of joining, and the caller
+ * (grouping_planner) can choose among the surviving paths for the rel.
+ *
+ * root describes the query to plan
+ * qp_callback is a function to compute query_pathkeys once it's safe to do so
+ * qp_extra is optional extra data to pass to qp_callback
+ *
+ * Note: the PlannerInfo node also includes a query_pathkeys field, which
+ * tells query_planner the sort order that is desired in the final output
+ * plan.  This value is *not* available at call time, but is computed by
+ * qp_callback once we have completed merging the query's equivalence classes.
+ * (We cannot construct canonical pathkeys until that's done.)
+ */
+RelOptInfo *
+query_planner(PlannerInfo *root,
+			  query_pathkeys_callback qp_callback, void *qp_extra)
+    /*
+	 * Ready to do the primary planning.
+	 */
+	final_rel = make_one_rel(root, joinlist);
+
 src/backend/optimizer/path/allpaths.c
 /*
  * make_one_rel
@@ -655,6 +755,10 @@ src/backend/optimizer/path/allpaths.c
  */
 RelOptInfo *
 make_one_rel(PlannerInfo *root, List *joinlist)
+    /*
+	 * Generate access paths for each base rel.
+	 */
+	set_base_rel_pathlists(root);
 	
 
 src/backend/optimizer/path/allpaths.c
@@ -721,7 +825,6 @@ set_plain_rel_pathlist(PlannerInfo *root, RelOptInfo *rel, RangeTblEntry *rte)
 	create_tidscan_paths(root, rel);
 }
     
-    
 src/backend/optimizer/util/pathnode.c
 Path *
 create_seqscan_path(PlannerInfo *root, RelOptInfo *rel, Relids required_outer, int parallel_workers)
@@ -736,17 +839,29 @@ void cost_seqscan(Path *path, PlannerInfo *root, RelOptInfo *baserel, ParamPathI
 		path->rows = baserel->rows;
 ```
 
-
-
-```c
-
-```
-
 ## III. Cardinality of Join Operators
 
-There are 3 kinds of join operators **nestloop join**, **merge join** and **hash join**. We take hash join are the example here.
+### 1. Computing Flow of Cardinality Estimation
 
 ```c
+/*
+ * join_search_one_level
+ *	  Consider ways to produce join relations containing exactly 'level'
+ *	  jointree items.  (This is one step of the dynamic-programming method
+ *	  embodied in standard_join_search.)  Join rel nodes for each feasible
+ *	  combination of lower-level rels are created and returned in a list.
+ *	  Implementation paths are created for each such joinrel, too.
+ *
+ * level: level of rels we want to make this time
+ * root->join_rel_level[j], 1 <= j < level, is a list of rels containing j items
+ *
+ * The result is returned in root->join_rel_level[level].
+ */
+void
+join_search_one_level(PlannerInfo *root, int level)
+    (void) make_join_rel(root, old_rel, new_rel);
+
+
 src/backend/optimizer/path/joinrels.c
 RelOptInfo *
 make_join_rel(PlannerInfo *root, RelOptInfo *rel1, RelOptInfo *rel2)
@@ -911,7 +1026,9 @@ calc_joinrel_size_estimate(PlannerInfo *root,
 
 ```
 
+### 2. The Representation of Join relation
+
 ## IV. Paths Generation of Join Operators
 
-
+There are 3 kinds of join operators **nestloop join**, **merge join** and **hash join**. We take hash join are the example here.
 
