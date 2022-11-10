@@ -1121,6 +1121,99 @@ calc_joinrel_size_estimate(PlannerInfo *root,
 	return clamp_row_est(nrows);
 }
 
+src/backend/optimizer/path/clausesel.c
+/*
+ * clauselist_selectivity -
+ *	  Compute the selectivity of an implicitly-ANDed list of boolean
+ *	  expression clauses.  The list can be empty, in which case 1.0
+ *	  must be returned.  List elements may be either RestrictInfos
+ *	  or bare expression clauses --- the former is preferred since
+ *	  it allows caching of results.
+ *
+ * See clause_selectivity() for the meaning of the additional parameters.
+ *
+ * The basic approach is to apply extended statistics first, on as many
+ * clauses as possible, in order to capture cross-column dependencies etc.
+ * The remaining clauses are then estimated by taking the product of their
+ * selectivities, but that's only right if they have independent
+ * probabilities, and in reality they are often NOT independent even if they
+ * only refer to a single column.  So, we want to be smarter where we can.
+ *
+ * We also recognize "range queries", such as "x > 34 AND x < 42".  Clauses
+ * are recognized as possible range query components if they are restriction
+ * opclauses whose operators have scalarltsel or a related function as their
+ * restriction selectivity estimator.  We pair up clauses of this form that
+ * refer to the same variable.  An unpairable clause of this kind is simply
+ * multiplied into the selectivity product in the normal way.  But when we
+ * find a pair, we know that the selectivities represent the relative
+ * positions of the low and high bounds within the column's range, so instead
+ * of figuring the selectivity as hisel * losel, we can figure it as hisel +
+ * losel - 1.  (To visualize this, see that hisel is the fraction of the range
+ * below the high bound, while losel is the fraction above the low bound; so
+ * hisel can be interpreted directly as a 0..1 value but we need to convert
+ * losel to 1-losel before interpreting it as a value.  Then the available
+ * range is 1-losel to hisel.  However, this calculation double-excludes
+ * nulls, so really we need hisel + losel + null_frac - 1.)
+ *
+ * If either selectivity is exactly DEFAULT_INEQ_SEL, we forget this equation
+ * and instead use DEFAULT_RANGE_INEQ_SEL.  The same applies if the equation
+ * yields an impossible (negative) result.
+ *
+ * A free side-effect is that we can recognize redundant inequalities such
+ * as "x < 4 AND x < 5"; only the tighter constraint will be counted.
+ *
+ * Of course this is all very dependent on the behavior of the inequality
+ * selectivity functions; perhaps some day we can generalize the approach.
+ */
+Selectivity
+clauselist_selectivity(PlannerInfo *root,
+					   List *clauses,
+					   int varRelid,
+					   JoinType jointype,
+					   SpecialJoinInfo *sjinfo)
+{
+	return clauselist_selectivity_ext(root, clauses, varRelid, jointype, sjinfo, true);
+}
+
+src/backend/optimizer/path/clausesel.c
+/*
+ * clauselist_selectivity_ext -
+ *	  Extended version of clauselist_selectivity().  If "use_extended_stats"
+ *	  is false, all extended statistics will be ignored, and only per-column
+ *	  statistics will be used.
+ */
+Selectivity
+clauselist_selectivity_ext(PlannerInfo *root,
+						   List *clauses,
+						   int varRelid,
+						   JoinType jointype,
+						   SpecialJoinInfo *sjinfo,
+						   bool use_extended_stats)
+	if (list_length(clauses) == 1)
+		return clause_selectivity_ext(root, (Node *) linitial(clauses),
+									  varRelid, jointype, sjinfo,
+									  use_extended_stats);
+
+src/backend/optimizer/path/clausesel.c
+/*
+ * clause_selectivity_ext -
+ *	  Extended version of clause_selectivity().  If "use_extended_stats" is
+ *	  false, all extended statistics will be ignored, and only per-column
+ *	  statistics will be used.
+ */
+Selectivity
+clause_selectivity_ext(PlannerInfo *root,
+					   Node *clause,
+					   int varRelid,
+					   JoinType jointype,
+					   SpecialJoinInfo *sjinfo,
+					   bool use_extended_stats)
+    /* Estimate selectivity for a restriction clause. */
+    s1 = restriction_selectivity(root, opno,
+                                 opclause->args,
+                                 opclause->inputcollid,
+                                 varRelid);
+
 ```
 
 ### 2. The Representation of Join relation
