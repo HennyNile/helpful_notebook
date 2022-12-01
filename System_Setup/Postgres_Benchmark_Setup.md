@@ -186,6 +186,8 @@ vim part.tbl
 # :%s/"/g
 ```
 
+#### f. Rename date.tbl to dates.tbl
+
 ### 2. Load the Data
 
 Download the scripts for postgres from https://quickstep.cs.wisc.edu/benchmark-scripts/.
@@ -194,14 +196,14 @@ Use the script ```load.sh``` to load .tbl dataset into postgres.
 
 Some preparation is needed.
 
-#### b. Create a database for SSB
+#### a. Create a database for SSB
 
 ```postgresql
 # in psql command line
 psql> create database ssb_1
 ```
 
-#### c. Modify config.sh
+#### b. Modify config.sh
 
 ```bash
 # You need to copy the dataset to a dir which the owner of postgresql could access
@@ -213,7 +215,7 @@ POSTGRES_EXEC="/usr/local/pgsql/bin/psql"
 POSTGRES_DB_NAME="ssb_1"
 ```
 
-#### d. Modify load.sh
+#### c. Modify load.sh
 
 ```bash
 # Add parameter for POSTGRES_EXEC
@@ -237,7 +239,7 @@ table_list=(
     part
     supplier
     customer
-    date
+    dates
     lineorder
 )
 
@@ -250,29 +252,34 @@ ADD FOREIGN KEY(lo_commitdate) REFERENCES ddate(d_datekey);
 
 # modified
 ALTER TABLE lineorder
-ADD FOREIGN KEY(lo_orderdate) REFERENCES date(d_datekey);
+ADD FOREIGN KEY(lo_orderdate) REFERENCES dates(d_datekey);
 
 ALTER TABLE lineorder
-ADD FOREIGN KEY(lo_commitdate) REFERENCES date(d_datekey);
+ADD FOREIGN KEY(lo_commitdate) REFERENCES dates(d_datekey);
 ```
 
-#### e. Modify create.sql
+#### d. Modify create.sql
 
 ```sql
 # initial
 DROP TABLE IF EXISTS ddate CASCADE;
 
 # modified
-DROP TABLE IF EXISTS date CASCADE;
+DROP TABLE IF EXISTS dates CASCADE;
 
 # initial
 CREATE TABLE ddate 
     
 # modified
-CREATE TABLE date 
+CREATE TABLE dates 
     
 # initial
 lo_orderdate INT NOT NULL,
+lo_commitdate INT NOT NULL,
+
+# modified
+lo_orderdate DATE NOT NULL,
+lo_commitdate DATE NOT NULL,
 
 # initial
 d_datekey INT NOT NULL,
@@ -281,9 +288,9 @@ d_datekey INT NOT NULL,
 d_datekey DATE NOT NULL,
 ```
 
-#### f. Copy dataset to the $SSB_TABLE_FILES_DIR
+#### e. Copy dataset to the $SSB_TABLE_FILES_DIR
 
-#### g. Run Command of Loading Data
+#### f. Run Command of Loading Data
 
 ```bash
 sh load.sh
