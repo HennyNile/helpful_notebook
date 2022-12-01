@@ -101,6 +101,7 @@ su - postgres_15_sc
 ```
 /usr/local/pgsql/bin/psql -h localhost -p 5431 -U postgres_15_sc postgres
 /usr/local/pgsql/bin/psql -h localhost -p 5431 -U postgres_15_sc imdb
+/usr/local/pgsql/bin/psql -h localhost -p 5431 -U postgres_15_sc ssb_1
 ```
 
 ### 3. Select Database
