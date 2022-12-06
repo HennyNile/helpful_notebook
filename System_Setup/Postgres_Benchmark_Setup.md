@@ -296,5 +296,3 @@ d_datekey DATE NOT NULL,
 sh load.sh
 ```
 
-
-
