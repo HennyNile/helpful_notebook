@@ -107,3 +107,80 @@ https://github.com/neurocard/neurocard
 ![image-20221202190510744](..\pictures\Neurocard_job_light_3.png)
 
 ![image-20221202190711067](..\pictures\Neurocard_job_light_4.png)
+
+## V. FLAT
+
+### 1. Source Code
+
+https://github.com/wuziniu/FSPN
+
+### 2. Requirements
+
+1. The specified version of many packages in environment.yml doesn't exist now, then you need to remove the version info of such package to install them. 
+2. Not all packages are needed, you could just run the code to see what packages are needed and just install them.
+
+### 3. Running Screen Shot
+
+![image-20221214202359120](..\pictures\flat_1.png)
+
+## VI. Flow-loss
+
+### 1. Source Code
+
+https://github.com/learnedsystems/CEB.git
+
+### 2. Requirements
+
+#### a. modify postgres connection info:
+
+```
+tests/test_installation.py
+errors = ppc.eval(qreps, preds, samples_type="test",
+            result_dir=None, user = "ceb", db_name = "imdb",
+            db_host = "localhost", port = 5432,
+            alg_name = "test")
+
+main.py
+    parser.add_argument("--user", type=str, required=False,
+            default="ceb")
+```
+
+#### b. Setup postgresql-server-dev-all
+
+``` 
+sudo apt-get installpostgresql-server-dev-all
+```
+
+#### c. Setup pg_hint_plan
+
+```bash
+# check version of pg
+postgres =# show server_version;
+
+# build pg_hint_plan
+git clone https://github.com/parimarjan/pg_hint_plan.git
+cd pg_hint_plan
+git checkout #appriorate branch
+make
+make install
+```
+
+### 3. Running Screen Shot
+
+ ```bash
+ python3 main.py --query_templates 1a,2a --algs postgres --eval_fns qerr,ppc,plancost --query_dir queries/imdb
+ ```
+
+![image-20221209215514942](..\pictures\flow_loss_1.png)
+
+```bash
+python3 main.py --query_templates all_jobm  --algs postgres --eval_fns qerr,ppc,plancost --query_dir queries/jobm
+```
+
+![image-20221209220659761](..\pictures\flow_loss_2.png)
+
+```bash
+python3 main.py --query_templates all_jobm  --algs true  --eval_fns qerr,ppc,plancost --query_dir queries/jobm
+```
+
+![image-20221209220822991](..\pictures\flow_loss_3.png)
