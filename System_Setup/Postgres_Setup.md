@@ -76,7 +76,11 @@ sudo find / -name 'postgresql.conf'
 # find port and modify it to 5431
 ```
 
-### 4. Start and Stop Service
+### 4. (Optional) FATAL: Peer authentication failed for user "postgres" 
+
+https://blog.csdn.net/liyazhen2011/article/details/88977424
+
+### 5. Start and Stop Service
 
 ```bash
 # start service
@@ -126,7 +130,21 @@ su - postgres_15_sc
 ANALYZE [ VERBOSE ] [ table_and_columns [, ...] ]
 ```
 
+### 6. Modify config parameters
 
+```postgresql
+--- show parameters values
+postgres=# select current_setting('work_mem');
+
+--- set paramters and reload config parameters
+--- set_config ( setting_name text, new_value text, is_local boolean ) → text
+--- Sets the parameter setting_name to new_value, and returns that value. If is_local is true, the new value will only apply during the current transaction. If you want the new value to apply for the rest of the current session, use false instead. 
+postgres=# select set_config('work_mem', '100MB', false);
+postgres=# alter system set work_mem='100MB';
+postgres=# select pg_reload_conf();
+```
+
+ 
 
 
 
