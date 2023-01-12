@@ -847,6 +847,24 @@ void cost_seqscan(Path *path, PlannerInfo *root, RelOptInfo *baserel, ParamPathI
 		path->rows = param_info->ppi_rows;
 	else
 		path->rows = baserel->rows;
+
+	/*
+	 * disk costs
+	 */
+	disk_run_cost = spc_seq_page_cost * baserel->pages;
+
+	/* CPU costs */
+	get_restriction_qual_cost(root, baserel, param_info, &qpqual_cost);
+
+	startup_cost += qpqual_cost.startup;
+	cpu_per_tuple = cpu_tuple_cost + qpqual_cost.per_tuple;
+	cpu_run_cost = cpu_per_tuple * baserel->tuples;
+	/* tlist eval costs are paid per output row, not per tuple scanned */
+	startup_cost += path->pathtarget->cost.startup;
+	cpu_run_cost += path->pathtarget->cost.per_tuple * path->rows;
+	
+	path->startup_cost = startup_cost;
+	path->total_cost = startup_cost + cpu_run_cost + disk_run_cost;
 ```
 
 ## III. Cardinality of Join Operators
@@ -1231,4 +1249,390 @@ clause_selectivity_ext(PlannerInfo *root,
 ## IV. Paths Generation of Join Operators
 
 There are 3 kinds of join operators **nestloop join**, **merge join** and **hash join**. We take hash join are the example here.
+
+```c
+src/backend/optimizer/plan/planmain.c
+/*
+ * query_planner
+ *	  Generate a path (that is, a simplified plan) for a basic query,
+ *	  which may involve joins but not any fancier features.
+ *
+ * Since query_planner does not handle the toplevel processing (grouping,
+ * sorting, etc) it cannot select the best path by itself.  Instead, it
+ * returns the RelOptInfo for the top level of joining, and the caller
+ * (grouping_planner) can choose among the surviving paths for the rel.
+ *
+ * root describes the query to plan
+ * qp_callback is a function to compute query_pathkeys once it's safe to do so
+ * qp_extra is optional extra data to pass to qp_callback
+ *
+ * Note: the PlannerInfo node also includes a query_pathkeys field, which
+ * tells query_planner the sort order that is desired in the final output
+ * plan.  This value is *not* available at call time, but is computed by
+ * qp_callback once we have completed merging the query's equivalence classes.
+ * (We cannot construct canonical pathkeys until that's done.)
+ */
+RelOptInfo *
+query_planner(PlannerInfo *root,
+			  query_pathkeys_callback qp_callback, void *qp_extra)
+    /*
+	 * Ready to do the primary planning.
+	 */
+	final_rel = make_one_rel(root, joinlist);
+
+src/backend/optimizer/path/allpath.c
+/*
+ * make_one_rel
+ *	  Finds all possible access paths for executing a query, returning a
+ *	  single rel that represents the join of all base rels in the query.
+ */
+RelOptInfo *
+make_one_rel(PlannerInfo *root, List *joinlist)
+    /*
+	 * Compute size estimates and consider_parallel flags for each base rel.
+	 */
+	set_base_rel_sizes(root);
+
+	/*
+	 * Generate access paths for each base rel.
+	 */
+	set_base_rel_pathlists(root);
+
+	/*
+	 * Generate access paths for the entire join tree.
+	 */
+	rel = make_rel_from_joinlist(root, joinlist);
+
+src/backend/optimizer/path/allpaths.c
+/*
+ * make_rel_from_joinlist
+ *	  Build access paths using a "joinlist" to guide the join path search.
+ *
+ * See comments for deconstruct_jointree() for definition of the joinlist
+ * data structure.
+ */
+static RelOptInfo *
+make_rel_from_joinlist(PlannerInfo *root, List *joinlist)
+    if (IsA(jlnode, List))
+    {
+        /* Recurse to handle subproblem */
+        thisrel = make_rel_from_joinlist(root, (List *) jlnode);
+    }
+    
+	return standard_join_search(root, levels_needed, initial_rels);
+
+src/backend/optimizer/path/allpaths.c
+/*
+ * standard_join_search
+ *	  Find possible joinpaths for a query by successively finding ways
+ *	  to join component relations into join relations.
+ *
+ * 'levels_needed' is the number of iterations needed, ie, the number of
+ *		independent jointree items in the query.  This is > 1.
+ *
+ * 'initial_rels' is a list of RelOptInfo nodes for each independent
+ *		jointree item.  These are the components to be joined together.
+ *		Note that levels_needed == list_length(initial_rels).
+ *
+ * Returns the final level of join relations, i.e., the relation that is
+ * the result of joining all the original relations together.
+ * At least one implementation path must be provided for this relation and
+ * all required sub-relations.
+ *
+ * To support loadable plugins that modify planner behavior by changing the
+ * join searching algorithm, we provide a hook variable that lets a plugin
+ * replace or supplement this function.  Any such hook must return the same
+ * final join relation as the standard code would, but it might have a
+ * different set of implementation paths attached, and only the sub-joinrels
+ * needed for these paths need have been instantiated.
+ *
+ * Note to plugin authors: the functions invoked during standard_join_search()
+ * modify root->join_rel_list and root->join_rel_hash.  If you want to do more
+ * than one join-order search, you'll probably need to save and restore the
+ * original states of those data structures.  See geqo_eval() for an example.
+ */
+RelOptInfo *
+standard_join_search(PlannerInfo *root, int levels_needed, List *initial_rels)
+	for (lev = 2; lev <= levels_needed; lev++)
+	{
+		join_search_one_level(root, lev);
+    }
+
+src/backend/optimizer/path/joinrels.c
+/*
+ * join_search_one_level
+ *	  Consider ways to produce join relations containing exactly 'level'
+ *	  jointree items.  (This is one step of the dynamic-programming method
+ *	  embodied in standard_join_search.)  Join rel nodes for each feasible
+ *	  combination of lower-level rels are created and returned in a list.
+ *	  Implementation paths are created for each such joinrel, too.
+ *
+ * level: level of rels we want to make this time
+ * root->join_rel_level[j], 1 <= j < level, is a list of rels containing j items
+ *
+ * The result is returned in root->join_rel_level[level].
+ */
+void
+join_search_one_level(PlannerInfo *root, int level)
+    make_rels_by_clause_joins(root, old_rel, other_rels_list, other_rels);
+	make_rels_by_clauseless_joins(root, old_rel,joinrels[1]);
+
+	// both above methods also call method (void) make_join_rel() to make join relations
+	(void) make_join_rel(root, old_rel, new_rel);
+
+src/backend/optimizer/path/joinrels.c
+RelOptInfo *
+make_join_rel(PlannerInfo *root, RelOptInfo *rel1, RelOptInfo *rel2)
+    joinrel = build_join_rel(root, joinrelids, rel1, rel2, sjinfo, &restrictlist);
+
+src/backend/optimizer/util/relnode.c
+RelOptInfo *
+build_join_rel(PlannerInfo *root, Relids joinrelids, RelOptInfo *outer_rel, RelOptInfo *inner_rel, SpecialJoinInfo *sjinfo, List **restrictlist_ptr)
+    /*
+	 * Set estimates of the joinrel's size.
+	 */
+	set_joinrel_size_estimates(root, joinrel, outer_rel, inner_rel, sjinfo, restrictlist);
+
+src/backend/optimizer/path/costsize.c
+void
+set_joinrel_size_estimates(PlannerInfo *root, RelOptInfo *rel,
+						   RelOptInfo *outer_rel,
+						   RelOptInfo *inner_rel,
+						   SpecialJoinInfo *sjinfo,
+						   List *restrictlist)
+{
+	rel->rows = calc_joinrel_size_estimate(root, el, uter_rel, nner_rel, uter_rel->rows, nner_rel->rows, jinfo, estrictlist);
+}
+
+src/backend/optimizer/path/costsize.c
+static double
+calc_joinrel_size_estimate(PlannerInfo *root,
+						   RelOptInfo *joinrel,
+						   RelOptInfo *outer_rel,
+						   RelOptInfo *inner_rel,
+						   double outer_rows,
+						   double inner_rows,
+						   SpecialJoinInfo *sjinfo,
+						   List *restrictlist_in)
+{	
+    /* This apparently-useless variable dodges a compiler bug in VS2013: */
+	List	   *restrictlist = restrictlist_in;
+	JoinType	jointype = sjinfo->jointype;
+	Selectivity fkselec;
+	Selectivity jselec;
+	Selectivity pselec;
+	double		nrows;
+
+	/*
+	 * Compute joinclause selectivity.  Note that we are only considering
+	 * clauses that become restriction clauses at this join level; we are not
+	 * double-counting them because they were not considered in estimating the
+	 * sizes of the component rels.
+	 *
+	 * First, see whether any of the joinclauses can be matched to known FK
+	 * constraints.  If so, drop those clauses from the restrictlist, and
+	 * instead estimate their selectivity using FK semantics.  (We do this
+	 * without regard to whether said clauses are local or "pushed down".
+	 * Probably, an FK-matching clause could never be seen as pushed down at
+	 * an outer join, since it would be strict and hence would be grounds for
+	 * join strength reduction.)  fkselec gets the net selectivity for
+	 * FK-matching clauses, or 1.0 if there are none.
+	 */
+	fkselec = get_foreign_key_join_selectivity(root,
+											   outer_rel->relids,
+											   inner_rel->relids,
+											   sjinfo,
+											   &restrictlist);
+
+	/*
+	 * For an outer join, we have to distinguish the selectivity of the join's
+	 * own clauses (JOIN/ON conditions) from any clauses that were "pushed
+	 * down".  For inner joins we just count them all as joinclauses.
+	 */
+	if (IS_OUTER_JOIN(jointype))
+	{
+		List	   *joinquals = NIL;
+		List	   *pushedquals = NIL;
+		ListCell   *l;
+
+		/* Grovel through the clauses to separate into two lists */
+		foreach(l, restrictlist)
+		{
+			RestrictInfo *rinfo = lfirst_node(RestrictInfo, l);
+
+			if (RINFO_IS_PUSHED_DOWN(rinfo, joinrel->relids))
+				pushedquals = lappend(pushedquals, rinfo);
+			else
+				joinquals = lappend(joinquals, rinfo);
+		}
+
+		/* Get the separate selectivities */
+		jselec = clauselist_selectivity(root,
+										joinquals,
+										0,
+										jointype,
+										sjinfo);
+		pselec = clauselist_selectivity(root,
+										pushedquals,
+										0,
+										jointype,
+										sjinfo);
+
+		/* Avoid leaking a lot of ListCells */
+		list_free(joinquals);
+		list_free(pushedquals);
+	}
+	else
+	{
+		jselec = clauselist_selectivity(root,
+										restrictlist,
+										0,
+										jointype,
+										sjinfo);
+		pselec = 0.0;			/* not used, keep compiler quiet */
+	}
+
+	/*
+	 * Basically, we multiply size of Cartesian product by selectivity.
+	 *
+	 * If we are doing an outer join, take that into account: the joinqual
+	 * selectivity has to be clamped using the knowledge that the output must
+	 * be at least as large as the non-nullable input.  However, any
+	 * pushed-down quals are applied after the outer join, so their
+	 * selectivity applies fully.
+	 *
+	 * For JOIN_SEMI and JOIN_ANTI, the selectivity is defined as the fraction
+	 * of LHS rows that have matches, and we apply that straightforwardly.
+	 */
+	switch (jointype)
+	{
+		case JOIN_INNER:
+			nrows = outer_rows * inner_rows * fkselec * jselec;
+			/* pselec not used */
+			break;
+		case JOIN_LEFT:
+			nrows = outer_rows * inner_rows * fkselec * jselec;
+			if (nrows < outer_rows)
+				nrows = outer_rows;
+			nrows *= pselec;
+			break;
+		case JOIN_FULL:
+			nrows = outer_rows * inner_rows * fkselec * jselec;
+			if (nrows < outer_rows)
+				nrows = outer_rows;
+			if (nrows < inner_rows)
+				nrows = inner_rows;
+			nrows *= pselec;
+			break;
+		case JOIN_SEMI:
+			nrows = outer_rows * fkselec * jselec;
+			/* pselec not used */
+			break;
+		case JOIN_ANTI:
+			nrows = outer_rows * (1.0 - fkselec * jselec);
+			nrows *= pselec;
+			break;
+		default:
+			/* other values not expected here */
+			elog(ERROR, "unrecognized join type: %d", (int) jointype);
+			nrows = 0;			/* keep compiler quiet */
+			break;
+	}
+
+	return clamp_row_est(nrows);
+}
+
+src/backend/optimizer/path/clausesel.c
+/*
+ * clauselist_selectivity -
+ *	  Compute the selectivity of an implicitly-ANDed list of boolean
+ *	  expression clauses.  The list can be empty, in which case 1.0
+ *	  must be returned.  List elements may be either RestrictInfos
+ *	  or bare expression clauses --- the former is preferred since
+ *	  it allows caching of results.
+ *
+ * See clause_selectivity() for the meaning of the additional parameters.
+ *
+ * The basic approach is to apply extended statistics first, on as many
+ * clauses as possible, in order to capture cross-column dependencies etc.
+ * The remaining clauses are then estimated by taking the product of their
+ * selectivities, but that's only right if they have independent
+ * probabilities, and in reality they are often NOT independent even if they
+ * only refer to a single column.  So, we want to be smarter where we can.
+ *
+ * We also recognize "range queries", such as "x > 34 AND x < 42".  Clauses
+ * are recognized as possible range query components if they are restriction
+ * opclauses whose operators have scalarltsel or a related function as their
+ * restriction selectivity estimator.  We pair up clauses of this form that
+ * refer to the same variable.  An unpairable clause of this kind is simply
+ * multiplied into the selectivity product in the normal way.  But when we
+ * find a pair, we know that the selectivities represent the relative
+ * positions of the low and high bounds within the column's range, so instead
+ * of figuring the selectivity as hisel * losel, we can figure it as hisel +
+ * losel - 1.  (To visualize this, see that hisel is the fraction of the range
+ * below the high bound, while losel is the fraction above the low bound; so
+ * hisel can be interpreted directly as a 0..1 value but we need to convert
+ * losel to 1-losel before interpreting it as a value.  Then the available
+ * range is 1-losel to hisel.  However, this calculation double-excludes
+ * nulls, so really we need hisel + losel + null_frac - 1.)
+ *
+ * If either selectivity is exactly DEFAULT_INEQ_SEL, we forget this equation
+ * and instead use DEFAULT_RANGE_INEQ_SEL.  The same applies if the equation
+ * yields an impossible (negative) result.
+ *
+ * A free side-effect is that we can recognize redundant inequalities such
+ * as "x < 4 AND x < 5"; only the tighter constraint will be counted.
+ *
+ * Of course this is all very dependent on the behavior of the inequality
+ * selectivity functions; perhaps some day we can generalize the approach.
+ */
+Selectivity
+clauselist_selectivity(PlannerInfo *root,
+					   List *clauses,
+					   int varRelid,
+					   JoinType jointype,
+					   SpecialJoinInfo *sjinfo)
+{
+	return clauselist_selectivity_ext(root, clauses, varRelid, jointype, sjinfo, true);
+}
+
+src/backend/optimizer/path/clausesel.c
+/*
+ * clauselist_selectivity_ext -
+ *	  Extended version of clauselist_selectivity().  If "use_extended_stats"
+ *	  is false, all extended statistics will be ignored, and only per-column
+ *	  statistics will be used.
+ */
+Selectivity
+clauselist_selectivity_ext(PlannerInfo *root,
+						   List *clauses,
+						   int varRelid,
+						   JoinType jointype,
+						   SpecialJoinInfo *sjinfo,
+						   bool use_extended_stats)
+	if (list_length(clauses) == 1)
+		return clause_selectivity_ext(root, (Node *) linitial(clauses),
+									  varRelid, jointype, sjinfo,
+									  use_extended_stats);
+
+src/backend/optimizer/path/clausesel.c
+/*
+ * clause_selectivity_ext -
+ *	  Extended version of clause_selectivity().  If "use_extended_stats" is
+ *	  false, all extended statistics will be ignored, and only per-column
+ *	  statistics will be used.
+ */
+Selectivity
+clause_selectivity_ext(PlannerInfo *root,
+					   Node *clause,
+					   int varRelid,
+					   JoinType jointype,
+					   SpecialJoinInfo *sjinfo,
+					   bool use_extended_stats)
+    /* Estimate selectivity for a restriction clause. */
+    s1 = restriction_selectivity(root, opno,
+                                 opclause->args,
+                                 opclause->inputcollid,
+                                 varRelid);
+```
 
