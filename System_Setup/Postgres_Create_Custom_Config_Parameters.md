@@ -10,13 +10,15 @@ There are three steps to create a customized parameter.
 
 Here we add a parameter **query_order** which is the order of query to be run.
 
+PGC_USERSET parameters could be modified without restarting the system.
+
 ```c
 src/backend/utils/misc/guc.c
 
  static struct config_int ConfigureNamesInt[] =
 {
     {
-        {"query_order", PGC_POSTMASTER, FILE_LOCATIONS,
+        {"query_order",PGC_USERSET, RESOURCES_ASYNCHRONOUS,
             gettext_noop("The order of query to be run."),
             NULL,
             1
