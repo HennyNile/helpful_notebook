@@ -875,7 +875,7 @@ path->jpath.path.total_cost = startup_cost + run_cost;
 
 ### 0. JOB Benchmark Info
 
- 
+ #### (1) Table list
 
 |      Table      | Row Number |                 Indexed Columns                  | Unindexed Column |
 | :-------------: | :--------: | :----------------------------------------------: | :--------------: |
@@ -901,7 +901,42 @@ path->jpath.path.total_cost = startup_cost + run_cost;
 | comp_cast_type  |     4      |                        id                        |       kind       |
 |  company_type   |     4      |                        id                        |       kind       |
 
+#### (2) Join Relations
+
 
 
 ### 1. Scan
+
+#### (1) Sequential Scan
+
+![SeqScan_cost_running_time](../pictures/SeqScan_cost_running_time.png)
+
+#### (2) Index Only Scan
+
+![IndexOnlyScan_cost_running_time](../pictures/IndexOnlyScan_cost_running_time.png)
+
+#### (3) Index Scan
+
+![IndexScan_cost_running_time](../pictures/IndexScan_cost_running_time.png)
+
+![IndexScan_cost_running_time_2](../pictures/IndexScan_cost_running_time_2.png)
+
+​		The outlier in the first figure caused by the computation method of IO cost for Index Scan method.
+
+​	    For Index scan in postgres, 
+$$
+IO\_Cost = Min\_io\_cost + idx\_correlation^2 * (Min\_io\_cost - Max\_io\_cost)\newline 
+Max\_io\_cost = io\_per\_page * tuples\newline
+Min\_io\_cost = io\_per\_page * pages\newline
+pages = tuples / tuples\_per\_page
+$$
+​		The **idx_correlation** is the the Pearson correlation of logical position and physical position of a column with idx.
+
+ ### 2. Join
+
+#### (1) Merge Join
+
+#### (2) Nestloop Join
+
+#### (3) Hash Join
 
