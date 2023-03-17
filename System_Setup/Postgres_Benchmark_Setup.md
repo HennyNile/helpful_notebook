@@ -1,6 +1,8 @@
 # Setup Dataset used in Benchmarks
 
-## I. JOB
+This file includes the setup of **JOB (Join Order Benchmark)**, **SSB (Star Schema Benchmark)**, **TPC-H** now.
+
+## I. Dumped IMDB Dataset
 
 Dataset Resource: https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/2QYZBT
 
@@ -295,4 +297,63 @@ d_datekey DATE NOT NULL,
 ```bash
 sh load.sh
 ```
+
+## IV. TPC-H
+
+main reference: 
+
+https://github.com/electrum/tpch-dbgen
+
+https://github.com/tvondra/pg_tpch
+
+### 1. Configure DBGen
+
+```bash
+# 1. dowoload dbgen from https://www.tpc.org/tpch/
+
+# 2. modify dbgen code
+cd dbgen
+cp Makefile.suite Makefile
+vim Makefile
+	CC=gcc
+	DataBase=POSTGRES
+	MACHINE=LINUX
+	WORKLOAD=TPCH
+
+vim tpcd.h
+# add following
+    #ifdef POSTGRES
+	#define GEN_QUERY_PLAN  "EXPLAIN"
+    #define START_TRAN      "BEGIN"
+    #define END_TRAN        "END"
+    #define SET_OUTPUT      ""
+    #define SET_ROWCOUNT    "limit %d\n"
+    #define SET_DBASE       "\\c %s\n"
+    #endif
+make
+```
+
+### 2. Generate Dataset
+
+```bash
+# generate dataset
+./dbgen -s [scale factor]
+
+# convert them to a CSV format compatible with PostgreSQL
+for i in `ls *.tbl`; do sed 's/|$//' $i > ${i/tbl/csv}; echo $i; done;
+```
+
+### 3. Load Data into PG
+
+```bash
+# 1. create database
+(SQL) create database tpch_[scale factor]
+
+# 2. use sql in reference github repository (second reference) create primary key, foreign key and addition index 
+
+# 3. load data into pg
+(SQL) copy tblname from 'tbl_csv_path' delimiter '|' csv;
+```
+
+### 4. Generate Queries
 
