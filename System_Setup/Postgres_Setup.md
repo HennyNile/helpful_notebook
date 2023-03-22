@@ -2,7 +2,9 @@
 
 ## I. Requirements
 
-You could determine the name of a software in **ubuntu software center**.
+You could determine the name of a software in **ubuntu software center**. 
+
+If you first make then install these missing packages, configure again before next m
 
 ### 1. GNU make
 
@@ -49,18 +51,13 @@ tar xf postgresql-version.tar.gz
 ### 1. Short Version
 
 ```
-./configure
+./configure --bindir==[absolute path of bin dir]
 make
-su
 make install
-adduser postgres_15_sc
-mkdir -p /usr/local/pgsql/data
-chown postgres_15_sc /usr/local/pgsql/data
-su - postgres_15_sc
-/usr/local/pgsql/bin/initdb -D /usr/local/pgsql/data
-/usr/local/pgsql/bin/pg_ctl -D /usr/local/pgsql/data -l logfile start
-/usr/local/pgsql/bin/createdb test
-/usr/local/pgsql/bin/psql test
+[bin dir]/initdb -D [data dir]
+[bin dir]/pg_ctl -D [data dir] -l logfile start
+[bin dir]/createdb test
+[bin dir]/psql test
 ```
 
 ### 2. Complete Version
@@ -84,12 +81,14 @@ https://blog.csdn.net/liyazhen2011/article/details/88977424
 
 ```bash
 # start service
-su - postgres_15_sc
-/usr/local/pgsql/bin/pg_ctl -D /usr/local/pgsql/data -l logfile start
+#su - postgres_15_sc
+#/usr/local/pgsql/bin/pg_ctl -D /usr/local/pgsql/data -l logfile start
+bin/pg_ctl -D [datadir] -l logfile start
 
 # stop service
-su - postgres_15_sc
-/usr/local/pgsql/bin/pg_ctl -D /usr/local/pgsql/data -l logfile stop
+#su - postgres_15_sc
+#/usr/local/pgsql/bin/pg_ctl -D /usr/local/pgsql/data -l logfile stop
+bin/pg_ctl -D [datadir] -l logfile stop
 ```
 
 ## IV. Post-installation Check
@@ -103,9 +102,8 @@ su - postgres_15_sc
 ### 2. Connect to Postgres
 
 ```
-/usr/local/pgsql/bin/psql -h localhost -p 5431 -U postgres_15_sc postgres
-/usr/local/pgsql/bin/psql -h localhost -p 5431 -U postgres_15_sc imdb
-/usr/local/pgsql/bin/psql -h localhost -p 5431 -U postgres_15_sc ssb_1
+bin/psql -h [host] -p [port] -U [username] [database]
+bin/psql -h localhost -p 5431 -U postgres_15_sc imdb
 ```
 
 ### 3. Select Database
