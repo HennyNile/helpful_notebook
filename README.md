@@ -9,6 +9,7 @@ This is a notebook recording my work (on database system until now).
 **System_SourceCode/**: Documents on how database system implements a feature in source code.
 
 **System_Study/**: Study of different features in databases.
+**Paper_Study/**: Reproduction or anlysis of papers.
 
 
 
