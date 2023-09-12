@@ -58,3 +58,16 @@ vim authorized_keys
 sh -c "$(wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -O -)"
 ```
 
+### 3. Anaconda
+
+1. In your browser, download the [Anaconda installer for Linux](https://www.anaconda.com/download/#linux).
+2. Install for Python 3.7 or 2.7 in the terminal:
+
+```bash
+# For Python 3.7, enter the following:
+bash ~/Downloads/Anaconda3-2020.05-Linux-x86_64.sh
+
+# For Python 2.7, enter the following:
+bash ~/Downloads/Anaconda2-2019.10-MacOSX-x86_64.sh
+```
+

@@ -18,5 +18,17 @@ change the location of ``PG_CONFIG`` to the corresponding location of postgres i
 
 Modify ```_pgdir```, ```_bindir```, ```_libdir```, ```_datadir```. You could obtain the location info via command ```pg_config```.
 
+## 4. Load pg_hint_plan
+
+```bash
+# 1. load manually
+LOAD 'pg_hint_plan'
+
+# 2. load automatically, modify modify postgresql.conf 
+shared_preload_libraries = 'pg_hint_plan'
+```
+
+
+
 
 

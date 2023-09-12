@@ -7,24 +7,24 @@
 ```
 cost_seqscan 
 	Determines and returns the cost of scanning a relation sequentially.
-cost_samplescan
-	Determines and returns the cost of scanning a relation using sampling.
+cost_index
+	Determines and returns the cost of scanning a relation using an index.
 cost_bitmap_heap_scan
 	Determines and returns the cost of scanning a relation using a bitmap index-then-heap plan.
-cost_bitmap_tree_node
-	Extract cost and selectivity from a bitmap tree node (index/and/or)
 cost_bitmap_and_node
 	Estimate the cost of a BitmapAnd node
 cost_bitmap_or_node
 	Estimate the cost of a BitmapOr node
+cost_bitmap_tree_node
+	Extract cost and selectivity from a bitmap tree node (index/and/or)
+cost_samplescan
+	Determines and returns the cost of scanning a relation using sampling.
 cost_tidscan
 	Determines and returns the cost of scanning a relation using TIDs.
 cost_tidrangescan
 	Determines and sets the costs of scanning a relation using a range of TIDs for 'path'
 cost_namedtuplestorescan
 	Determines and returns the cost of scanning a named tuplestore.
-cost_index
-	Determines and returns the cost of scanning a relation using an index.
 cost_memoize_rescan
 	Determines the estimated cost of rescanning a Memoize node.
 cost_rescan
@@ -903,7 +903,9 @@ path->jpath.path.total_cost = startup_cost + run_cost;
 
 #### (2) Join Relations
 
+This figure is from paper **How Good Are Query Optimizer, Really?**
 
+![image-20230307164616968](../pictures/imdb_join_relations.png)
 
 ### 1. Scan
 

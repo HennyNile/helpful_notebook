@@ -357,3 +357,16 @@ for i in `ls *.tbl`; do sed 's/|$//' $i > ${i/tbl/csv}; echo $i; done;
 
 ### 4. Generate Queries
 
+```bash
+for q in `seq 1 22`
+do
+    DSS_QUERY=dss/templates ./qgen $q >> dss/queries/$q.sql
+    sed 's/^select/explain select/' dss/queries/$q.sql > dss/queries/$q.explain.sql
+    cat dss/queries/$q.sql >> dss/queries/$q.explain.sql;
+done
+```
+
+## V. TPC-DS
+
+
+
