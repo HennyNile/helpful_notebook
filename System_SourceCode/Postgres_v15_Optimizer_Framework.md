@@ -11,7 +11,7 @@ These directories take the Query structure returned by the parser, and generate 
 /plan directory generates the actual output plan.
 /path code generates all possible ways to join the tables.
 /prep handles various preprocessing steps for special cases. 
-/util is utility stuff.  
+/util is utility stuff.
 /geqo is the separate "genetic optimization" planner --- it does a semi-random search through the join tree space, rather than exhaustively considering all possible join trees.  (But each join considered by /geqo is given to /path to create paths for, so we consider all possible implementation paths for each specific join pair even in GEQO mode.)
 ```
 

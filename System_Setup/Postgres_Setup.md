@@ -50,12 +50,14 @@ tar xf postgresql-version.tar.gz
 
 ### 1. Short Version
 
-```
-./configure --bindir==[absolute path of bin dir]
+```bash
+./configure --bindir=[absolute path of bin dir] --datadir=[absolute path of data dir 1] --libdir=[absolute path of lib dir] --enable-debug
+# example: ./configure --bindir=/home/dbgroup/workspace/liqilong/LBO/pg15/bin --datadir=/home/dbgroup/workspace/liqilong/LBO/pgdata --libdir=/home/dbgroup/workspace/liqilong/LBO/pg15/lib --enable-debug
+
 make
 make install
-[bin dir]/initdb -D [data dir]
-[bin dir]/pg_ctl -D [data dir] -l logfile start
+[bin dir]/initdb -D [data dir 2]
+[bin dir]/pg_ctl -D [data dir 2] -l logfile start
 [bin dir]/createdb test
 [bin dir]/psql test
 ```
