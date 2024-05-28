@@ -368,5 +368,25 @@ done
 
 ## V. TPC-DS
 
+## VI. STATS
+
+source url: https://github.com/Nathaniel-Han/End-to-End-CardEst-Benchmark
+
+### 1. Load Data into PG
+
+The csv data file is in the dir ``datasets/stats_simplified``.
+
+```sql
+create database stats;
+\c stats;
+\i datasets/stats_simplified/stats.sql
+\i scripts/sql/stats_load.sql
+\i scripts/sql/stats_index.sql
+```
+
+### 2. Workloads
+
+The workload queries locate at ``workloads``.
+
 
 
