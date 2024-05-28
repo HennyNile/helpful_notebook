@@ -6,25 +6,29 @@ The official website has introduced the simplest installation procedures. If you
 
 ## 1. pg_config
 
-``pg_config`` is a postgres command and you could get the corresponding postgres' configurations via this command. The following the output of command ```pg_config```, you could get the location of bin/, include/ and lib/ of Postgres. You could check whether you use the right ```pg_config``` via version and location of postgres.
+``pg_config`` is a postgres command and you could get the corresponding postgres' configurations via this command. The following the output of command ```pg_config```, you could get the location of bin/, include/ and lib/ of Postgres. You could check whether you use the right ```pg_config``` via version and location of postgres. 
 
 ![image-20230428122118517](../pictures/pg_config.png)
 
 ## 2. Modify Makefile
 
-change the location of ``PG_CONFIG`` to the corresponding location of postgres in line 37.
+use the current pg_config path to replace the location of ``PG_CONFIG`` to the corresponding location of postgres in line 37.
 
 ## 3. Modify SPECS/pg_hint_plan<pg_version>.spec
 
 Modify ```_pgdir```, ```_bindir```, ```_libdir```, ```_datadir```. You could obtain the location info via command ```pg_config```.
 
-## 4. Load pg_hint_plan
+## 4. Make & Load pg_hint_plan
 
 ```bash
-# 1. load manually
+# 1.compile and install
+make
+sudo make install
+
+# 2. load manually
 LOAD 'pg_hint_plan'
 
-# 2. load automatically, modify modify postgresql.conf 
+# 3. load automatically, modify modify postgresql.conf 
 shared_preload_libraries = 'pg_hint_plan'
 ```
 
