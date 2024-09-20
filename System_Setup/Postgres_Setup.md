@@ -53,6 +53,7 @@ tar xf postgresql-version.tar.gz
 ```bash
 ./configure --bindir=[absolute path of bin dir] --datadir=[absolute path of data dir 1] --libdir=[absolute path of lib dir] --enable-debug
 # example: ./configure --bindir=/home/dbgroup/workspace/liqilong/LBO/pg15/bin --datadir=/home/dbgroup/workspace/liqilong/LBO/pgdata --libdir=/home/dbgroup/workspace/liqilong/LBO/pg15/lib --enable-debug
+# ./configure --bindir=/workspace/qilong/LBO/pg15/bin --datadir=/workspace/qilong/LBO/pgdata --libdir=/workspace/qilong/LBO/pg15/lib
 
 make
 make install
